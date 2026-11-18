@@ -24,10 +24,10 @@ keytool -genkeypair -alias jwt-signing -keyalg RSA -keysize 3072 -storetype PKCS
   -dname "CN=bank-app-jwt-signing"
 ```
 
-`keytool` prompts for each keystore password and key password. For the server
-keystore, press Enter at the key-password prompt to use the same password. For
-the JWT keystore, set the passwords you will provide as `JWT_KEY_STORE_PASSWORD`
-and `JWT_KEY_PASSWORD`.
+`keytool` prompts for each keystore password and key password. PKCS12 keystores
+use the same password for the store and private key, so press Enter at each
+key-password prompt to reuse the store password. Set `JWT_KEY_PASSWORD` to the
+same value as `JWT_KEY_STORE_PASSWORD`.
 
 Set the required values in the PowerShell process that will run Compose:
 
