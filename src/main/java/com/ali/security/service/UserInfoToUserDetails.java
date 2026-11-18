@@ -19,7 +19,10 @@ public class UserInfoToUserDetails implements UserDetails {
     public UserInfoToUserDetails(UserInfo userInfo) {
         this.email = userInfo.getEmail();
         this.password = userInfo.getPassword();
-        this.authorities = Arrays.stream(userInfo.getRoles().split(","))
+        String roles = userInfo.getRoles();
+        this.authorities = roles == null ? List.of() : Arrays.stream(roles.split(","))
+                .map(String::trim)
+                .filter(role -> !role.isEmpty())
                 .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toList());
     }

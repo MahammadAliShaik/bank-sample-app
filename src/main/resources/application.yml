@@ -3,8 +3,9 @@ server:
   ssl:
     enabled: true
     key-store-type: PKCS12
-    key-store: classpath:banking-cert.p12
-    key-store-password: ${SSL_PASSWORD:password}
+    key-store: "${SSL_KEY_STORE:file:./certs/server-keystore.p12}"
+    key-store-password: "${SSL_PASSWORD}"
+    enabled-protocols: TLSv1.3,TLSv1.2
 
 spring:
   application:
@@ -14,7 +15,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:bank_inventory}
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:root}
+    password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   # ORM / Hibernate Settings
@@ -31,7 +32,7 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      password: ${REDIS_PASSWORD}
       timeout: 2000ms
 
   # OAuth2 Federated Login Providers
@@ -40,8 +41,8 @@ spring:
       client:
         registration:
           github:
-            client-id: ${GITHUB_CLIENT_ID:Ov23liDll0VCLrEWstd0}
-            client-secret: ${GITHUB_CLIENT_SECRET:cbc8bd22a988125a973c93c38099dd46f71a7f00}
+            client-id: ${GITHUB_CLIENT_ID}
+            client-secret: ${GITHUB_CLIENT_SECRET}
             scope:
               - read:user
               - user:email
@@ -56,4 +57,8 @@ spring:
 # Application-Level Security Variables
 security:
   jwt:
-    expiration-minutes: 15
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:15}
+    key-store: "${JWT_KEY_STORE:file:./certs/jwt-signing-keystore.p12}"
+    key-store-password: "${JWT_KEY_STORE_PASSWORD}"
+    key-password: "${JWT_KEY_PASSWORD}"
+    key-alias: ${JWT_KEY_ALIAS:jwt-signing}

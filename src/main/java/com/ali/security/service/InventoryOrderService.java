@@ -10,6 +10,8 @@ import com.ali.security.repository.ProductRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -26,17 +28,27 @@ public class InventoryOrderService {
         this.orderRepository = orderRepository;
     }
 
-    public List<Product> getAllAvailableProducts() { return productRepository.findAll(); }
+    public List<Product> getAllAvailableProducts() { return productRepository.findByAvailableStockGreaterThan(0); }
 
     public Product addProduct(Product product) { return productRepository.save(product); }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrderResponse placeOrder(String username, CreateOrderRequest request) {
+        if (request == null || request.getProductId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Product ID is required");
+        }
+        if (request.getQuantity() == null || request.getQuantity() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Quantity must be positive");
+        }
+        if (request.getSettlementAccountNumber() == null || request.getSettlementAccountNumber().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Settlement account number is required");
+        }
+
         Product product = productRepository.findByIdWithLock(request.getProductId())
-                .orElseThrow(() -> new IllegalArgumentException("Product not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Product not found"));
 
         if (product.getAvailableStock() < request.getQuantity()) {
-            throw new IllegalStateException("Insufficient stock");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Insufficient stock");
         }
 
         product.setAvailableStock(product.getAvailableStock() - request.getQuantity());
@@ -56,17 +68,23 @@ public class InventoryOrderService {
 
         Order saved = orderRepository.save(order);
 
-        return OrderResponse.builder()
-                .orderNumber(saved.getOrderNumber())
-                .productId(saved.getProductId())
-                .quantity(saved.getQuantity())
-                .totalAmount(saved.getTotalAmount())
-                .status(saved.getStatus())
-                .createdAt(saved.getCreatedAt())
-                .build();
+        return toResponse(saved);
     }
 
-    public List<Order> getOrdersByUser(String username) {
-        return orderRepository.findByCustomerUsername(username);
+    public List<OrderResponse> getOrdersByUser(String username) {
+        return orderRepository.findByCustomerUsername(username).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private OrderResponse toResponse(Order order) {
+        return OrderResponse.builder()
+                .orderNumber(order.getOrderNumber())
+                .productId(order.getProductId())
+                .quantity(order.getQuantity())
+                .totalAmount(order.getTotalAmount())
+                .status(order.getStatus())
+                .createdAt(order.getCreatedAt())
+                .build();
     }
 }
