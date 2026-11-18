@@ -1,0 +1,45 @@
+services:
+  bank-app:
+    build: .
+    container_name: bank_api
+    ports:
+      - "8443:8443"
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DB_PASSWORD=root  # <-- Use your actual DB password here
+      - SSL_PASSWORD=password         # <-- Keystore password
+      - AES_DB_KEY=MyBankKey1234567   # <-- 16-char DB encryption key
+      - GITHUB_CLIENT_ID=dummy-id
+      - GITHUB_CLIENT_SECRET=dummy-secret
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: bank_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root # <-- Must match the password above
+      POSTGRES_DB: bank_inventory
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: bank_redis
+    restart: always
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
