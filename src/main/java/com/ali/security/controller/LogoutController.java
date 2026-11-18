@@ -1,6 +1,7 @@
 package com.ali.security.controller;
 
 import com.ali.security.service.JwtService;
+import io.jsonwebtoken.Claims;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Date;
 
 @RestController
@@ -28,12 +30,11 @@ public class LogoutController {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
 
-            Date expiration = jwtService.extractExpiration(token);
-            long remainingSeconds = (expiration.getTime() - System.currentTimeMillis()) / 1000;
-
-            if (remainingSeconds > 0) {
-                // Instantly writes the token to Redis with an automatic expiration matching the JWT
-                redisTemplate.opsForValue().set("blacklist:" + token, "revoked", Duration.ofSeconds(remainingSeconds));
+            Claims claims = jwtService.extractAllClaims(token);
+            Date expiration = claims.getExpiration();
+            Duration remaining = Duration.between(Instant.now(), expiration.toInstant());
+            if (!remaining.isNegative() && !remaining.isZero()) {
+                redisTemplate.opsForValue().set("blacklist:" + claims.getId(), "revoked", remaining);
             }
         }
         return ResponseEntity.ok("Successfully logged out. Token destroyed.");

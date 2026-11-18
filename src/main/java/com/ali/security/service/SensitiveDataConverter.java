@@ -14,10 +14,18 @@ public class SensitiveDataConverter implements AttributeConverter<String, String
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_TAG_LENGTH = 128;
     private static final int GCM_IV_LENGTH = 12;
-    // Uses 16-byte key for local testing
-    private static final byte[] KEY = System.getenv("AES_DB_KEY") != null
-            ? System.getenv("AES_DB_KEY").getBytes(StandardCharsets.UTF_8)
-            : "MyBankKey1234567".getBytes(StandardCharsets.UTF_8);
+    private final SecretKeySpec key;
+
+    public SensitiveDataConverter() {
+        this(requiredKey());
+    }
+
+    SensitiveDataConverter(byte[] keyBytes) {
+        if (keyBytes == null || (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32)) {
+            throw new IllegalArgumentException("AES_DB_KEY must be 16, 24, or 32 bytes");
+        }
+        this.key = new SecretKeySpec(keyBytes.clone(), "AES");
+    }
 
     @Override
     public String convertToDatabaseColumn(String rawData) {
@@ -26,7 +34,7 @@ public class SensitiveDataConverter implements AttributeConverter<String, String
             byte[] iv = new byte[GCM_IV_LENGTH];
             new SecureRandom().nextBytes(iv);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(KEY, "AES"), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
 
             byte[] cipherText = cipher.doFinal(rawData.getBytes(StandardCharsets.UTF_8));
             byte[] encrypted = new byte[iv.length + cipherText.length];
@@ -47,11 +55,23 @@ public class SensitiveDataConverter implements AttributeConverter<String, String
             byte[] iv = new byte[GCM_IV_LENGTH];
             System.arraycopy(decoded, 0, iv, 0, iv.length);
             Cipher cipher = Cipher.getInstance(ALGORITHM);
-            cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(KEY, "AES"), new GCMParameterSpec(GCM_TAG_LENGTH, iv));
+            cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(GCM_TAG_LENGTH, iv));
 
             return new String(cipher.doFinal(decoded, iv.length, decoded.length - iv.length), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("Critical: Decryption failure or payload tampered", e);
         }
+    }
+
+    private static byte[] requiredKey() {
+        String configuredKey = System.getenv("AES_DB_KEY");
+        if (configuredKey == null || configuredKey.isBlank()) {
+            throw new IllegalStateException("AES_DB_KEY must be configured");
+        }
+        byte[] keyBytes = configuredKey.getBytes(StandardCharsets.UTF_8);
+        if (keyBytes.length != 16 && keyBytes.length != 24 && keyBytes.length != 32) {
+            throw new IllegalStateException("AES_DB_KEY must be 16, 24, or 32 UTF-8 bytes");
+        }
+        return keyBytes;
     }
 }
