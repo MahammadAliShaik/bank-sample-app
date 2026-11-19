@@ -49,11 +49,46 @@ flowchart LR
 - Changing it without a data migration can make existing encrypted values
   unreadable.
 
-## 3. Create secrets and start the app
+## 3. Files and settings by environment
+
+| Environment | What you provide |
+|---|---|
+| Local Docker testing | App source/build files; a local `.env` or shell environment variables; a self-signed `certs/server-keystore.p12`; a separate `certs/jwt-signing-keystore.p12`; Docker Compose services and volumes. |
+| Shared development | A built app/container image; environment-specific database, Redis, OAuth, and AES secrets; a TLS certificate/keystore trusted by the development clients; a separate persistent JWT signing key. Keep secrets in the team's secret manager, not in Git. |
+| Production | A built, reviewed app/container image; a CA-issued TLS certificate and private key provided securely; a separate stable JWT signing key; `AES_DB_KEY`; database, Redis, and OAuth credentials; managed/persistent PostgreSQL and Redis. Inject secrets through the platform's secret manager. |
+
+- `.env` is convenient for local Compose runs; it is not a production
+  deployment requirement.
+- The local self-signed `localhost` certificate is only for local testing.
+- Do not skip TLS or required keys in development/production. Replace local
+  files with secure environment-specific secrets and certificates.
+- With the current app configuration, provide the server and JWT keystores at
+  the configured paths (or update the configuration to use your platform's
+  secure mounts). Never package private keys into a public image or repository.
+
+## 4. Create secrets and start the app
 
 1. Install/use Java 17, Docker Desktop, and `keytool`.
-2. Follow [TLS.md](TLS.md) to create the two keystores and configure local
-   secrets. Do not paste secrets into source files or share them.
+2. Open PowerShell in the repository folder and generate two different
+   keystores:
+
+   ```powershell
+   New-Item -ItemType Directory -Force certs
+   keytool -genkeypair -alias server -keyalg RSA -keysize 3072 -storetype PKCS12 `
+     -keystore certs\server-keystore.p12 -validity 365 `
+     -dname "CN=localhost" -ext "SAN=dns:localhost,ip:127.0.0.1"
+   keytool -genkeypair -alias jwt-signing -keyalg RSA -keysize 3072 -storetype PKCS12 `
+     -keystore certs\jwt-signing-keystore.p12 -validity 3650 `
+     -dname "CN=bank-app-jwt-signing"
+   ```
+
+   - `keytool` asks you to create passwords; do not use example passwords.
+   - For these PKCS12 files, press Enter at the private-key password prompt to
+     reuse the keystore password.
+   - Set `JWT_KEY_PASSWORD` to the same value as
+     `JWT_KEY_STORE_PASSWORD`.
+   - These commands create a self-signed localhost certificate for testing;
+     do not use it as the public certificate in production.
 3. Keep local configuration in a `.env` file in the repository root, or set
    the same variables in the PowerShell process that runs Compose as shown in
    [TLS.md](TLS.md). Compose reads `.env` automatically. Required values are:
@@ -70,17 +105,42 @@ flowchart LR
    Optional values include `DB_USERNAME` (defaults to `postgres`) and
    `JWT_KEY_ALIAS` (defaults to `jwt-signing`).
 
+   Local `.env` layout (fill in your own values; do not commit this file):
+
+   ```text
+   SSL_PASSWORD=
+   JWT_KEY_STORE_PASSWORD=
+   JWT_KEY_PASSWORD=
+   DB_PASSWORD=
+   REDIS_PASSWORD=
+   GITHUB_CLIENT_ID=
+   GITHUB_CLIENT_SECRET=
+   AES_DB_KEY=
+   ```
+
    `.env` is ignored by Git because it contains passwords, OAuth credentials,
    and encryption keys. Do not commit the real `.env` file or put real values
    in documentation.
-4. In Windows CMD, change to the repository folder and run:
+4. Generate a random AES key for local use. This PowerShell command prints 32
+   ASCII characters; put its result in `AES_DB_KEY` in `.env` and keep it safe:
+
+   ```powershell
+   $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+   $bytes = New-Object byte[] 24
+   $rng.GetBytes($bytes)
+   [Convert]::ToBase64String($bytes)
+   $rng.Dispose()
+   ```
+
+   Keep the same key for the same database.
+5. In Windows CMD, change to the repository folder and run:
 
    ```cmd
    mvnw.cmd package
    docker compose up --build
    ```
 
-5. Leave that window running. Check services from a second CMD window:
+6. Leave that window running. Check services from a second CMD window:
 
    ```cmd
    docker compose ps
@@ -109,10 +169,19 @@ flowchart LR
   credentials, and `AES_DB_KEY`. Supply them through a secret manager or
   protected deployment environment; use a CA-issued TLS certificate.
 
-## 4. Test the APIs in Postman
+## 5. Test the APIs in Postman
 
 For JSON requests, choose **Body → raw → JSON**. Use
 `https://localhost:8443` for every endpoint.
+
+- Quick HTTPS check from Windows CMD:
+
+  ```cmd
+  curl.exe -k -i https://localhost:8443/api/v1/inventory/public/products
+  ```
+
+- `-k` skips certificate verification for this local self-signed certificate;
+  the connection still uses TLS. Use this only for local testing.
 
 ### A. List products
 
@@ -202,7 +271,7 @@ For JSON requests, choose **Body → raw → JSON**. Use
 - Requires a JWT with `ROLE_ADMIN`.
 - A user created through registration has `ROLE_CUSTOMER`, not admin.
 
-## 5. Where the database lives
+## 6. Where the database lives
 
 - Database name: `bank_inventory`
 - Docker Compose service: `postgres`
@@ -237,6 +306,12 @@ For JSON requests, choose **Body → raw → JSON**. Use
 
 4. Exit with `\q`.
 
+- From Windows CMD instead, the same database can be opened with:
+
+  ```cmd
+  docker compose exec postgres psql -U postgres -d bank_inventory
+  ```
+
 - Java entity `UserInfo` maps to the PostgreSQL table `public.users`.
 - Never query or share the `password` column; it contains password hashes.
 - Settlement account and wholesale cost are sensitive encrypted fields.
@@ -263,7 +338,11 @@ For JSON requests, choose **Body → raw → JSON**. Use
   SELECT current_database(), inet_server_addr(), inet_server_port();
   ```
 
-## 6. Demo product data
+- If you edit table data in pgAdmin, save/commit the change (for example, use
+  the Save Data Changes button in the grid). Confirm the connection targets
+  host `localhost`, port `5432`, and `bank_inventory`.
+
+## 7. Demo product data
 
 If the public products endpoint returns `[]`, first check:
 
@@ -285,7 +364,7 @@ VALUES
 - SKU must be unique; do not insert the same sample rows twice.
 - The product endpoint returns only rows where `available_stock > 0`.
 
-## 7. Common issues
+## 8. Common issues
 
 - **Postman certificate error:** confirm the URL starts with `https://`; for
   local testing only, turn off SSL certificate verification in Postman.
@@ -304,7 +383,7 @@ VALUES
   missing `net.bytebuddy` runtime class. The dependency is set to runtime scope
   in this repository to fix that startup issue.
 
-## 8. Main code files
+## 9. Main code files
 
 - HTTPS and database settings: `src/main/resources/application.yml`
 - Docker services, ports, secret mounts, and database volume:
