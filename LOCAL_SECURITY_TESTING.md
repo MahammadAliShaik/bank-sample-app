@@ -70,6 +70,15 @@ flowchart LR
 
 ### What is and is not committed
 
+- **Keep these files on your local machine; they are intentionally not
+  committed for security reasons:**
+  - `.env`
+  - `certs/server-keystore.p12`
+  - `certs/jwt-signing-keystore.p12`
+- Keep secure backups of these files and their passwords. Do not share them or
+  upload them to Git, even if the repository is private.
+- Keep the same `AES_DB_KEY` for the database; losing or changing it can make
+  existing encrypted database values unreadable.
 - **Committed:** `.env.example`, with blank values and no credentials.
 - **Not committed:** your actual `.env`, because it contains passwords,
   OAuth credentials, and the AES key.
