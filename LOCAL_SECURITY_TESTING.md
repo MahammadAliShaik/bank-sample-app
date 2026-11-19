@@ -85,7 +85,13 @@ flowchart LR
 ## 4. Create secrets and start the app
 
 1. Install/use Java 17, Docker Desktop, and `keytool`.
-2. Open PowerShell in the repository folder and generate two different
+2. Open Docker Desktop and wait until its engine is running. In CMD, verify it:
+
+   ```cmd
+   docker info
+   ```
+
+3. Open PowerShell in the repository folder and generate two different
    keystores:
 
    ```powershell
@@ -105,7 +111,7 @@ flowchart LR
      `JWT_KEY_STORE_PASSWORD`.
    - These commands create a self-signed localhost certificate for testing;
      do not use it as the public certificate in production.
-3. In Windows CMD, copy the safe template to the local file:
+4. In Windows CMD, copy the safe template to the local file:
 
    ```cmd
    copy .env.example .env
@@ -131,7 +137,7 @@ flowchart LR
    `.env` is ignored by Git because it contains passwords, OAuth credentials,
    and encryption keys. Do not commit the real `.env` file or put real values
    in documentation.
-4. Generate a random AES key for local use. This PowerShell command prints 32
+5. Generate a random AES key for local use. This PowerShell command prints 32
    ASCII characters; put its result in `AES_DB_KEY` in `.env` and keep it safe:
 
    ```powershell
@@ -143,23 +149,52 @@ flowchart LR
    ```
 
    Keep the same key for the same database.
-5. In Windows CMD, change to the repository folder and run:
+6. In Windows CMD, go to the repository folder (replace the example path with
+   your actual folder), then build the JAR and start Docker Compose:
 
    ```cmd
+   cd /d "D:\path\to\bank-sample-app"
    mvnw.cmd package
    docker compose up --build
    ```
 
-6. Leave that window running. Check services from a second CMD window:
+   - `mvnw.cmd package` builds the JAR that the Dockerfile copies into the app
+     image and runs the tests.
+   - `docker compose up --build` builds/starts the API, PostgreSQL, and Redis.
+   - Keep this window open to see startup logs.
+7. Check service status from a second CMD window:
 
    ```cmd
    docker compose ps
+   ```
+
+   To read recent API logs:
+
+   ```cmd
+   docker compose logs --tail=100 bank-app
+   ```
+
+   To test HTTPS from CMD:
+
+   ```cmd
+   curl.exe -k -i https://localhost:8443/api/v1/inventory/public/products
    ```
 
 - App container: `bank_api`
 - Database container: `bank_postgres`
 - Redis container: `bank_redis`
 - HTTPS port: `8443`
+
+### Stop and start Docker services
+
+- If Compose is running in the foreground, press **Ctrl+C** in that window.
+- Then run `docker compose down` to stop and remove the containers. This keeps
+  the `postgres_data` and `redis_data` volumes.
+- To start them again without rebuilding, run `docker compose up`.
+- To rebuild after changing application code, run:
+  `mvnw.cmd package` followed by `docker compose up --build`.
+- **Do not run `docker compose down -v`** unless you intentionally want to
+  delete the database and Redis volumes and their data.
 
 ### Local certificate note
 
