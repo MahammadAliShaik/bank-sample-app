@@ -59,12 +59,28 @@ flowchart LR
 
 - `.env` is convenient for local Compose runs; it is not a production
   deployment requirement.
+- The committed `.env.example` contains names/placeholders only. Copy it to
+  `.env` for local work, then add your own secret values.
 - The local self-signed `localhost` certificate is only for local testing.
 - Do not skip TLS or required keys in development/production. Replace local
   files with secure environment-specific secrets and certificates.
 - With the current app configuration, provide the server and JWT keystores at
   the configured paths (or update the configuration to use your platform's
   secure mounts). Never package private keys into a public image or repository.
+
+### What is and is not committed
+
+- **Committed:** `.env.example`, with blank values and no credentials.
+- **Not committed:** your actual `.env`, because it contains passwords,
+  OAuth credentials, and the AES key.
+- **Not committed:** `certs/server-keystore.p12` and
+  `certs/jwt-signing-keystore.p12`, because they contain private keys.
+- **Not committed:** your live PostgreSQL database files or Docker volume.
+  PostgreSQL keeps local data in the `postgres_data` Docker volume.
+- The `.gitignore` rules intentionally exclude `.env` and `certs/`.
+- Recreate the local keystores with the PowerShell commands in section 4.
+  Recreate demo products with the SQL in section 7. Do not commit real user
+  data or database dumps.
 
 ## 4. Create secrets and start the app
 
@@ -89,9 +105,16 @@ flowchart LR
      `JWT_KEY_STORE_PASSWORD`.
    - These commands create a self-signed localhost certificate for testing;
      do not use it as the public certificate in production.
-3. Keep local configuration in a `.env` file in the repository root, or set
-   the same variables in the PowerShell process that runs Compose as shown in
-   [TLS.md](TLS.md). Compose reads `.env` automatically. Required values are:
+3. In Windows CMD, copy the safe template to the local file:
+
+   ```cmd
+   copy .env.example .env
+   ```
+
+   Edit `.env` in a text editor and fill in your own local values. Compose
+   reads `.env` automatically. Alternatively, set the same variables in the
+   PowerShell process that runs Compose as shown in [TLS.md](TLS.md). Required
+   values are:
 
    - `SSL_PASSWORD`
    - `JWT_KEY_STORE_PASSWORD`
@@ -104,19 +127,6 @@ flowchart LR
 
    Optional values include `DB_USERNAME` (defaults to `postgres`) and
    `JWT_KEY_ALIAS` (defaults to `jwt-signing`).
-
-   Local `.env` layout (fill in your own values; do not commit this file):
-
-   ```text
-   SSL_PASSWORD=
-   JWT_KEY_STORE_PASSWORD=
-   JWT_KEY_PASSWORD=
-   DB_PASSWORD=
-   REDIS_PASSWORD=
-   GITHUB_CLIENT_ID=
-   GITHUB_CLIENT_SECRET=
-   AES_DB_KEY=
-   ```
 
    `.env` is ignored by Git because it contains passwords, OAuth credentials,
    and encryption keys. Do not commit the real `.env` file or put real values
