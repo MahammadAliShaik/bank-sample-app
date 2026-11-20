@@ -439,6 +439,7 @@ VALUES
 
 ## 9. Main code files
 
+- GitHub Actions CI workflow: `.github/workflows/ci.yml`
 - HTTPS and database settings: `src/main/resources/application.yml`
 - Docker services, ports, secret mounts, and database volume:
   `docker-compose.yml`
@@ -456,3 +457,36 @@ VALUES
 - Sensitive database encryption:
   `src/main/java/com/ali/security/service/SensitiveDataConverter.java`
 - Keystore creation and required secrets: [TLS.md](TLS.md)
+
+## 10. CI and deployment
+
+- CI means automated checks run when code is proposed or pushed.
+- The workflow in `.github/workflows/ci.yml` runs on pull requests targeting
+  `master`, pushes to `master`, or when manually started from GitHub Actions.
+- It uses Java 17, runs `mvnw clean verify` (including the automated tests),
+  and builds the Docker image.
+- For a successful push to `master`, it also publishes the image to GitHub
+  Container Registry (GHCR) as `ghcr.io/mahammadalishaik/bank-sample-app`,
+  tagged with the commit SHA and `latest`.
+- GHCR package visibility may be private by default. A future VPS deploy must
+  either make the image intentionally public or give the server read-only
+  package access through a securely stored token; never commit that token.
+- To see results, open the repository on GitHub and select **Actions**. Open
+  the latest **CI** run to see each step and its result.
+- Pull requests do not receive permission to publish images. The publish job
+  runs only after a push to `master`.
+- The Compose app service uses that image name; local
+  `docker compose up --build` still builds from source. `APP_IMAGE_TAG`
+  defaults to `latest`; deployments should use a specific commit-SHA tag.
+- **The workflow does not deploy to a VPS yet.** A server and secure SSH
+  configuration are needed before a deployment job can be tested.
+- A VPS deployment needs a Linux server, a secure SSH connection, a domain and
+  trusted TLS certificate, and a plan for PostgreSQL, Redis, and secrets.
+  Configure deployment credentials as GitHub Actions secrets, never as
+  workflow text or committed files.
+- Choose and create the hosting account/server before setting up a deployment
+  workflow. Cloud servers can incur charges. Do not put customer or real
+  banking data on this learning app.
+- PostgreSQL and Redis ports in Compose are bound to `127.0.0.1`, not all
+  network interfaces. Keep them private on a VPS; allow public access only to
+  the API's HTTPS port after configuring its trusted certificate and firewall.
